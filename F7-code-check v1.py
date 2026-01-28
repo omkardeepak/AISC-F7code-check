@@ -6,15 +6,15 @@ def flexural_strength_hss_f7(data):
     Flexural strength of square/rectangular HSS and box sections
     """
 
-    # -----------------------------
+    
     # Metadata
-    # -----------------------------
+    
     element_id = data.get("element_id", "UNKNOWN")
     method = data["method"]  # ASD or LRFD
 
-    # -----------------------------
+    
     # Material & Section Properties
-    # -----------------------------
+    
     Fy = data["Fy"]
     E = data["E"]
     Ag = data["Ag"]
@@ -39,18 +39,18 @@ def flexural_strength_hss_f7(data):
 
     is_square = abs(b - h) < 1e-6
 
-    # -----------------------------
+    
     # 1. Plastic Moment Capacity
-    # -----------------------------
+    
     Mp = Fy * Z
 
     Mn_FLB = None
     Mn_WLB = None
     Mn_LTB = None
 
-    # -----------------------------
+    
     # 2. Flange Local Buckling (F7-2, F7-3)
-    # -----------------------------
+    
     if flange_class == "NonCompact":
         Mn_FLB = Mp - (Mp - Fy * S) * (
             3.57 * (b / tf) * math.sqrt(Fy / E) - 4.0
@@ -73,9 +73,9 @@ def flexural_strength_hss_f7(data):
 
     # Compact flange → not applicable
 
-    # -----------------------------
+    
     # 3. Web Local Buckling (F7-6)
-    # -----------------------------
+    
     if web_class == "NonCompact":
         Mn_WLB = Mp - (Mp - Fy * S) * (
             0.305 * (h / tw) * math.sqrt(Fy / E) - 0.738
@@ -85,9 +85,9 @@ def flexural_strength_hss_f7(data):
     # Slender web → does NOT occur for HSS
     # Compact web → not applicable
 
-    # -----------------------------
+    
     # 4. Lateral–Torsional Buckling (F7-10, F7-11)
-    # -----------------------------
+    
     if not is_square and bending_axis == "Major":
 
         Lp = 0.13 * E * ry * math.sqrt(J * Ag) / Mp
@@ -106,9 +106,9 @@ def flexural_strength_hss_f7(data):
             Mn_LTB = 2 * E * Cb * math.sqrt(J * Ag) / (Lb / ry)
             Mn_LTB = min(Mn_LTB, Mp)
 
-    # -----------------------------
+    
     # 5. Governing Nominal Strength
-    # -----------------------------
+    
     candidates = {
         "Yielding": Mp,
         "Flange Local Buckling": Mn_FLB,
@@ -120,9 +120,9 @@ def flexural_strength_hss_f7(data):
     governing_limit_state = min(valid, key=valid.get)
     Mn = valid[governing_limit_state]
 
-    # -----------------------------
+    
     # 6. Output
-    # -----------------------------
+    
     return {
         "element_id": element_id,
         "book": "AISC 360-16",
