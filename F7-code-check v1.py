@@ -13,18 +13,14 @@ def flexural_strength_hss_f7(
     Flexural strength of square / rectangular HSS and box sections
     """
 
-    # -------------------------------------------------
     # 1. Verify Applicability
-    # -------------------------------------------------
     if section.type != "SectionType.HSS":
         raise ValueError("Chapter F7 applies only to HSS / BOX sections")
 
     section_type = section.type
     is_square = abs(b - h) < 1e-6
 
-    # -------------------------------------------------
     # 2. Identify Bending Axis
-    # -------------------------------------------------
     axis_enum, _, _ = classify_bending_axis(section=section, My=My, Mz=Mz)
     bending_axis = axis_enum.value  # "major" or "minor"
 
@@ -35,26 +31,20 @@ def flexural_strength_hss_f7(
         S = Sy
         Z = section.Zy
 
-    # -------------------------------------------------
     # 3. Compactness Classification (B4.1)
-    # -------------------------------------------------
     compactness = classify_section(section=section, material=material)
 
     flange_class = compactness["elements"]["flange"]["classification"].capitalize()
     web_class = compactness["elements"]["web"]["classification"].capitalize()
 
-    # -------------------------------------------------
     # 4. Plastic Moment Capacity (Yielding)
-    # -------------------------------------------------
     Mp = Fy * Z
 
     Mn_FLB = None
     Mn_WLB = None
     Mn_LTB = None
 
-    # -------------------------------------------------
     # 5. Flange Local Buckling (F7-2, F7-3)
-    # -------------------------------------------------
     if flange_class == "Noncompact":
         Mn_FLB = Mp - (Mp - Fy * S) * (
             3.57 * (b / tf) * math.sqrt(Fy / E) - 4.0
@@ -77,9 +67,7 @@ def flexural_strength_hss_f7(
 
     # Compact flange → FLB not applicable
 
-    # -------------------------------------------------
     # 6. Web Local Buckling (F7-6)
-    # -------------------------------------------------
     if web_class == "Noncompact":
         Mn_WLB = Mp - (Mp - Fy * S) * (
             0.305 * (h / tw) * math.sqrt(Fy / E) - 0.738
@@ -88,9 +76,7 @@ def flexural_strength_hss_f7(
 
     # Slender web does not occur for HSS per AISC note
 
-    # -------------------------------------------------
     # 7. Lateral–Torsional Buckling (F7-10, F7-11)
-    # -------------------------------------------------
     if not is_square and bending_axis == "major":
 
         Lp = 0.13 * E * ry * math.sqrt(J * Ag) / Mp
@@ -109,9 +95,7 @@ def flexural_strength_hss_f7(
             Mn_LTB = 2 * E * Cb * math.sqrt(J * Ag) / (Lb / ry)
             Mn_LTB = min(Mn_LTB, Mp)
 
-    # -------------------------------------------------
     # 8. Governing Nominal Flexural Strength
-    # -------------------------------------------------
     candidates = {
         "Yielding": Mp,
         "Flange Local Buckling": Mn_FLB,
@@ -123,9 +107,7 @@ def flexural_strength_hss_f7(
     governing_limit_state = min(applicable, key=applicable.get)
     Mn = applicable[governing_limit_state]
 
-    # -------------------------------------------------
     # 9. Output (As per your required schema)
-    # -------------------------------------------------
     return {
         "book": "AISC 360-16",
         "chapter": "F7",
