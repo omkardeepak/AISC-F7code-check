@@ -6,10 +6,7 @@ def flexural_strength_hss_f7(
     ry, J,
     b, tf, h, tw,
     Lb, Cb,
-    My, Mz,
-    section,
-    material,
-    method
+    My, Mz
 ):
     """
     AISC 360-16 | Chapter F7
