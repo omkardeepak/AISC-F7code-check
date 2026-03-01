@@ -430,7 +430,6 @@ def flexural_strength_f9(
         "book": "AISC 360-22",
         "chapter": "F9",
         "check": "Flexural Strength",
-        "section_type": "Tee" if section.type == SectionType.TEE else "Double Angle",
         "method": method,
         "bending_axis":bending_axis.name if hasattr(bending_axis, "name") else str(bending_axis),
         "stem_condition": "Tension" if stem_in_tension else "Compression",

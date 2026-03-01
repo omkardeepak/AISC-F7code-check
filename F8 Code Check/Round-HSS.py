@@ -195,7 +195,6 @@ def flexural_strength_hss_f8(
         "book": "AISC 360-22",
         "chapter": "F8",
         "check": "Flexural Strength",
-        "section_type": "Round HSS",
         "method": method,
         "bending_axis": (
             bending_axis.name
