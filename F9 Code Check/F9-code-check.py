@@ -174,69 +174,130 @@ def flexural_strength_f9(
             ltb_case = "Tee stem in compression LTB (F9-13)"
 
     # ==================================================================
-    # 6. LIMIT STATE 3 — FLANGE LOCAL BUCKLING  (F9.4)
+    # 6. LIMIT STATE 3 — FLANGE LOCAL BUCKLING  (F9.3)
     # ==================================================================
-    Mn_FLB  = None
-    Sxc     = Sx             # Elastic section modulus in compression at flange
+    Mn_FLB   = None
+    Fcr_flg  = None          # Critical stress (used for double-angle slender legs)
+    Sxc      = Sx            # Elastic section modulus in compression at flange
     flb_case = "N/A"
-
-    # Flange slenderness
-    lambda_f  = bf / (2 * tf)
-    lambda_pf = 0.38 * math.sqrt(E / Fy)
-    lambda_rf = 1.0  * math.sqrt(E / Fy)
 
     flange_class = compactness["elements"]["flange"]["classification"]
 
-    if flange_class == "Compact":
-        # No FLB
-        Mn_FLB = None
-        flb_case = "Compact flange — No FLB"
+    if section.type == SectionType.TEE:
+        # ----------------------------------------------------------
+        # Tee flanges — F9-14 / F9-15
+        # ----------------------------------------------------------
+        lambda_f  = bf / (2 * tf)
+        lambda_pf = 0.38 * math.sqrt(E / Fy)
+        lambda_rf = 1.0  * math.sqrt(E / Fy)
 
-    elif flange_class == "Noncompact":
-        Mn_FLB = Mp - (Mp - 0.7 * Fy * Sxc) * (
-            (lambda_f - lambda_pf) / (lambda_rf - lambda_pf)
-        )                                                    # Eq. F9-14
-        Mn_FLB = min(Mn_FLB, 1.6 * My_val)
-        flb_case = "Noncompact flange (F9-14)"
+        if flange_class == "Compact":
+            Mn_FLB = None
+            flb_case = "Compact flange — No FLB"
 
-    elif flange_class == "Slender":
-        Mn_FLB = (0.7 * E * Sxc) / (lambda_f ** 2)          # Eq. F9-15
-        flb_case = "Slender flange (F9-15)"
+        elif flange_class == "Noncompact":
+            Mn_FLB = Mp - (Mp - 0.7 * Fy * Sxc) * (
+                (lambda_f - lambda_pf) / (lambda_rf - lambda_pf)
+            )                                                    # Eq. F9-14
+            Mn_FLB = min(Mn_FLB, 1.6 * My_val)
+            flb_case = "Noncompact flange (F9-14)"
 
-    #Need to add condition for double angle flange legs
+        elif flange_class == "Slender":
+            Mn_FLB = (0.7 * E * Sxc) / (lambda_f ** 2)          # Eq. F9-15
+            flb_case = "Slender flange (F9-15)"
+
+    else:
+        # ----------------------------------------------------------
+        # Double-angle flange legs — F10.3 (F10-6 / F10-7 / F10-8)
+        #   (per F9.3: "For double angles with the flange legs in
+        #    compression, Mn shall be determined in accordance with
+        #    Section F10.3, with Sc referred to the compression
+        #    flange.")
+        # ----------------------------------------------------------
+        lambda_f  = bf / tf               # b/t for double-angle flange leg
+        Sc        = Sxc                    # Elastic section modulus referred to compression flange
+
+        if flange_class == "Compact":
+            Mn_FLB = None
+            flb_case = "Compact double-angle flange leg — No FLB"
+
+        elif flange_class == "Noncompact":
+            # Eq. F10-6
+            Mn_FLB = Fy * Sc * (
+                2.43 - 1.72 * lambda_f * math.sqrt(Fy / E)
+            )                                                    # Eq. F10-6
+            flb_case = "Noncompact double-angle flange leg (F10-6)"
+
+        elif flange_class == "Slender":
+            # Eq. F10-7:  Fcr = 0.71·E / (b/t)²
+            Fcr_flg = 0.71 * E / (lambda_f ** 2)                # Eq. F10-7
+            # Eq. F10-8:  Mn = Fcr · Sc
+            Mn_FLB  = Fcr_flg * Sc                              # Eq. F10-8
+            flb_case = "Slender double-angle flange leg (F10-7 / F10-8)"
 
     # ==================================================================
     # 7. LIMIT STATE 4 — LOCAL BUCKLING OF TEE STEMS /
-    #                     DOUBLE-ANGLE WEB LEGS  (F9.3)
+    #                     DOUBLE-ANGLE WEB LEGS  (F9.4)
     # ==================================================================
-    Mn_SLB  = None          # Stem / web-leg local buckling
+    Mn_SLB   = None          # Stem / web-leg local buckling
     Fcr_stem = None
+    Fcr_web  = None           # Critical stress for double-angle slender web legs
     slb_case = "N/A"
 
     if not stem_in_tension:
         # Stem / web legs are in compression → check local buckling
-        lambda_s = d / tw
-        lambda_ps = 0.84 * math.sqrt(E / Fy)      # Table B4.1b compact limit
-        lambda_rs = 1.52 * math.sqrt(E / Fy)      # Table B4.1b noncompact limit
-
         stem_class = compactness["elements"]["web"]["classification"]
 
-        if stem_class == "Compact":
-            Fcr_stem = Fy                                    # Eq. F9-17
-            slb_case = "Compact stem (F9-17)"
+        if section.type == SectionType.TEE:
+            # ----------------------------------------------------------
+            # Tee stems — F9-16 / F9-17 / F9-18 / F9-19
+            # ----------------------------------------------------------
+            lambda_s = d / tw
 
-        elif stem_class == "Noncompact":
-            Fcr_stem = (
-                1.43 - 0.515 * lambda_s * math.sqrt(Fy / E)
-            ) * Fy                                           # Eq. F9-18
-            slb_case = "Noncompact stem (F9-18)"
+            if stem_class == "Compact":
+                Fcr_stem = Fy                                    # Eq. F9-17
+                slb_case = "Compact stem (F9-17)"
 
-        elif stem_class == "Slender":
-            Fcr_stem = 1.52 * E / (lambda_s ** 2)            # Eq. F9-19
-            slb_case = "Slender stem (F9-19)"
+            elif stem_class == "Noncompact":
+                Fcr_stem = (
+                    1.43 - 0.515 * lambda_s * math.sqrt(Fy / E)
+                ) * Fy                                           # Eq. F9-18
+                slb_case = "Noncompact stem (F9-18)"
 
-        if Fcr_stem is not None:
-            Mn_SLB = Fcr_stem * Sx                           # Eq. F9-16
+            elif stem_class == "Slender":
+                Fcr_stem = 1.52 * E / (lambda_s ** 2)            # Eq. F9-19
+                slb_case = "Slender stem (F9-19)"
+
+            if Fcr_stem is not None:
+                Mn_SLB = Fcr_stem * Sx                           # Eq. F9-16
+
+        else:
+            # ----------------------------------------------------------
+            # Double-angle web legs — F10.3 (F10-6 / F10-7 / F10-8)
+            #   (per F9.4(b): "For double angles with web legs in
+            #    compression, Mn shall be determined per F10.3
+            #    with Sc taken as the elastic section modulus.")
+            # ----------------------------------------------------------
+            lambda_w  = d / tw                # b/t for web leg
+            Sc_web    = Sx                    # Elastic section modulus
+
+            if stem_class == "Compact":
+                Mn_SLB = None
+                slb_case = "Compact double-angle web leg — No WLB"
+
+            elif stem_class == "Noncompact":
+                # Eq. F10-6
+                Mn_SLB = Fy * Sc_web * (
+                    2.43 - 1.72 * lambda_w * math.sqrt(Fy / E)
+                )                                                # Eq. F10-6
+                slb_case = "Noncompact double-angle web leg (F10-6)"
+
+            elif stem_class == "Slender":
+                # Eq. F10-7:  Fcr = 0.71·E / (b/t)²
+                Fcr_web = 0.71 * E / (lambda_w ** 2)             # Eq. F10-7
+                # Eq. F10-8:  Mn = Fcr · Sc
+                Mn_SLB  = Fcr_web * Sc_web                       # Eq. F10-8
+                slb_case = "Slender double-angle web leg (F10-7 / F10-8)"
 
     # ==================================================================
     # 8. EQUATIONS REGISTER  (Chapter F9 — all referenced formulas)
@@ -339,39 +400,75 @@ def flexural_strength_f9(
         },
         "F9-14": {
             "id":          "F9-14",
-            "description": "Flange Local Buckling — Noncompact",
-            "value":       Mn_FLB if flange_class == "Noncompact" else None,
-            "applicable":  flange_class == "Noncompact",
+            "description": "Flange Local Buckling — Noncompact (Tee)",
+            "value":       Mn_FLB if (is_tee and flange_class == "Noncompact") else None,
+            "applicable":  is_tee and flange_class == "Noncompact",
         },
         "F9-15": {
             "id":          "F9-15",
-            "description": "Flange Local Buckling — Slender",
-            "value":       Mn_FLB if flange_class == "Slender" else None,
-            "applicable":  flange_class == "Slender",
+            "description": "Flange Local Buckling — Slender (Tee)",
+            "value":       Mn_FLB if (is_tee and flange_class == "Slender") else None,
+            "applicable":  is_tee and flange_class == "Slender",
+        },
+        "F10-6": {
+            "id":          "F10-6",
+            "description": "Flange Leg Local Buckling — Noncompact (Double-Angle)",
+            "value":       Mn_FLB if (is_dbl and flange_class == "Noncompact") else None,
+            "applicable":  is_dbl and flange_class == "Noncompact",
+        },
+        "F10-7": {
+            "id":          "F10-7",
+            "description": "Critical Buckling Stress — Slender Flange Leg (Double-Angle)",
+            "value":       Fcr_flg if (is_dbl and flange_class == "Slender") else None,
+            "applicable":  is_dbl and flange_class == "Slender",
+        },
+        "F10-8": {
+            "id":          "F10-8",
+            "description": "Flange Leg Local Buckling — Slender (Double-Angle)",
+            "value":       Mn_FLB if (is_dbl and flange_class == "Slender") else None,
+            "applicable":  is_dbl and flange_class == "Slender",
         },
         "F9-16": {
             "id":          "F9-16",
-            "description": "Stem/Web-Leg Local Buckling — Mn = Fcr·Sx",
-            "value":       Mn_SLB,
-            "applicable":  Mn_SLB is not None,
+            "description": "Tee Stem Local Buckling — Mn = Fcr·Sx",
+            "value":       Mn_SLB if is_tee else None,
+            "applicable":  is_tee and Mn_SLB is not None,
         },
         "F9-17": {
             "id":          "F9-17",
-            "description": "Stem Compact — Fcr = Fy",
+            "description": "Stem Compact — Fcr = Fy (Tee)",
             "value":       Fcr_stem if slb_case == "Compact stem (F9-17)" else None,
             "applicable":  slb_case == "Compact stem (F9-17)",
         },
         "F9-18": {
             "id":          "F9-18",
-            "description": "Stem Noncompact",
+            "description": "Stem Noncompact (Tee)",
             "value":       Fcr_stem if slb_case == "Noncompact stem (F9-18)" else None,
             "applicable":  slb_case == "Noncompact stem (F9-18)",
         },
         "F9-19": {
             "id":          "F9-19",
-            "description": "Stem Slender — Fcr = 1.52·E / (d/tw)²",
+            "description": "Stem Slender — Fcr = 1.52·E / (d/tw)² (Tee)",
             "value":       Fcr_stem if slb_case == "Slender stem (F9-19)" else None,
             "applicable":  slb_case == "Slender stem (F9-19)",
+        },
+        "F10-6-web": {
+            "id":          "F10-6",
+            "description": "Web Leg Local Buckling — Noncompact (Double-Angle)",
+            "value":       Mn_SLB if "F10-6" in slb_case else None,
+            "applicable":  "F10-6" in slb_case,
+        },
+        "F10-7-web": {
+            "id":          "F10-7",
+            "description": "Critical Buckling Stress — Slender Web Leg (Double-Angle)",
+            "value":       Fcr_web if "F10-7" in slb_case else None,
+            "applicable":  "F10-7" in slb_case,
+        },
+        "F10-8-web": {
+            "id":          "F10-8",
+            "description": "Web Leg Local Buckling — Slender (Double-Angle)",
+            "value":       Mn_SLB if "F10-8" in slb_case else None,
+            "applicable":  "F10-8" in slb_case,
         },
     }
 
@@ -449,6 +546,8 @@ def flexural_strength_f9(
             "Lr": Lr_val,
             "Lb": Lb,
             "Fcr_stem": Fcr_stem,
+            "Fcr_web": Fcr_web,
+            "Fcr_flg": Fcr_flg,
         },
         "equations": equations,
         "candidates": candidates,
